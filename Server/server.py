@@ -4,18 +4,19 @@ from flask import render_template
 from flask import request
 from flask import jsonify
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static/")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///links.db"
 db = SQLAlchemy(app)
 
 
 class Links(db.Model):
     id = db.Column(db.Integer, primary_key = True)
-    link = db.Column(db.String(200), default="")
+    link = db.Column(db.String(200), default="", unique=True)
     likes = db.Column(db.Integer, default=0)
     dislikes = db.Column(db.Integer, default = 0)
     about = db.Column(db.Text, default = "")
     isActive = db.Column(db.Boolean, default=True)
+    tags = db.Column(db.Text, default="")
    
     
 @app.route("/")
