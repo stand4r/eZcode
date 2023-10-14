@@ -1,24 +1,37 @@
-from flask import Flask
+from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask import render_template
-from flask import request
-from flask import jsonify
+from flask_cors import CORS, cross_origin
 
 app = Flask(__name__, static_folder="static/")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///links.db"
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 db = SQLAlchemy(app)
 
+ips = {}
 
 class Links(db.Model):
-    id = db.Column(db.Integer, primary_key = True)
+    id = db.Column(db.Integer, primary_key=True)
     link = db.Column(db.String(200), default="", unique=True)
     likes = db.Column(db.Integer, default=0)
-    dislikes = db.Column(db.Integer, default = 0)
-    about = db.Column(db.Text, default = "")
-    isActive = db.Column(db.Boolean, default=True)
+    about = db.Column(db.Text, default="")
+    name = db.Column(db.Text, default="")
+    image = db.Column(db.Text, default="")
     tags = db.Column(db.Text, default="")
-   
-    
+
+    def to_dict(self):
+        link_dict = {
+            "id": self.id,
+            "link": self.link,
+            "likes": self.likes,
+            "about": self.about,
+            "name": self.name,
+            "image": self.image,
+            "tags": self.tags.split(';')
+        }
+        return link_dict
+
+
 @app.route("/")
 @app.route("/index")
 def index():
@@ -26,78 +39,92 @@ def index():
 
 
 @app.route("/api", methods=["GET"])
+@cross_origin()
 def get_links():
-    links = db.session.query(Links).all()
-    links_dict = [link.__dict__ for link in links]
-    for link_dict in links_dict:
-        link_dict.pop('_sa_instance_state')
+    linee = db.session.query(Links).all()
+    links_dict = [link.to_dict() for link in linee]
     return jsonify(links_dict)
 
 
 @app.route("/api/<int:id>", methods=["GET"])
+@cross_origin()
 def get_link(id):
-    link = db.session.get(Links, id)
+    link = db.session.query(Links).get(id)
     if link is None:
         return jsonify({'error': 'Link not found'}), 404
-    else:
-        link_dict = link.__dict__
-        link_dict.pop('_sa_instance_state')
-        return jsonify(link_dict)
+    link_dict = link.to_dict()
+    return jsonify(link_dict)
 
 
 @app.route('/api', methods=['POST'])
-def create_user():
+@cross_origin()
+def create_link():
     data = request.get_json()
-    if 'about' not in data or 'link' not in data:
-        return jsonify({'message': 'Link is required required'}), 400
-    else:
-        link = Links(link=data['link'], about=data['about'])
-        db.session.add(link)
-        db.session.commit()
-        link_dict = link.__dict__
-        link_dict.pop('_sa_instance_state')
-        return jsonify(link_dict), 201
+    if not data or not all(key in data for key in ['name', 'link', 'desc', 'image', 'tags']):
+        return jsonify({'error': 'Invalid request data'}), 400
+
+    link = Links(
+        name=data['name'],
+        link=data['link'],
+        about=data['desc'],
+        likes=0,
+        image=data['image'],
+        tags=';'.join(data['tags'])
+    )
+    db.session.add(link)
+    db.session.commit()
+    link_dict = link.to_dict()
+    return jsonify(link_dict), 201
+
+@app.route("/api/tags/")
+@cross_origin()
+def get_by_tags_all():
+    linee = db.session.query(Links).all()
+    links_dict = [link.to_dict() for link in linee]
+    return jsonify(links_dict)
 
 
-@app.route('/api', methods=['PUT'])
-def update_user():
-    data = request.get_json()
-    if 'id' not in data:
-        return jsonify({'message': 'Link is required'}), 400
-    else:
-        link = db.session.get(Links, int(data['id']))
-        if link is None:
-            return jsonify({'error': 'Link not found'}), 404
-        else:
-            if 'id' not in data:
-                return jsonify({'message': 'Link is required'}), 400
-            else:
-                if 'link' in data:
-                    link.link = data['link']
-                if 'likes' in data:
-                    link.likes = data['likes']
-                if 'dislikes' in data:
-                    link.dislikes = data['dislikes']
-                if 'about' in data:
-                    link.about = data['about']
-                if 'isActive' in data:
-                    link.isActive = data['isActive']
-                db.session.commit()
-                link_dict = link.__dict__
-                link_dict.pop('_sa_instance_state')
-                return jsonify(link_dict), 200
+@app.route("/api/tags/<string:tags>")
+@cross_origin()
+def get_by_tags(tags):
+    if not tags:
+        linee = db.session.query(Links).all()
+        links_dict = [link.to_dict() for link in linee]
+        return jsonify(links_dict)
+    tarray = [f'%{i}%' for i in tags.split(';')]
+    search_res = db.session.query(Links)
+    for i in tarray:
+        search_res = search_res.where(Links.tags.like(i))
+    search_res = search_res.all()
+    endp_res = []
+    for i in search_res:
+        if any([k in i.tags.split(';') for k in tags.split(';')]):
+            link_dict = i.__dict__
+            link_dict.pop('_sa_instance_state')
+            endp_res.append(link_dict)
+    return jsonify(endp_res), 200
+
+@app.route("/api/like/<int:id>")
+@cross_origin()
+def set_like(id):
+    link = db.session.query(Links).get(id)
+    if link is None:
+        return jsonify({'error': 'Link not found'}), 404
+    link.likes += 1
+    db.session.commit()
+    return '', 201
 
 
 @app.route('/api/<int:id>', methods=['DELETE'])
-def delete_user(id):
-    link = db.session.get(Links, id)
+@cross_origin()
+def delete_link(id):
+    link = db.session.query(Links).get(id)
     if link is None:
-        return jsonify({'message': 'Link not found'}), 404
-    else:
-        db.session.delete(link)
-        db.session.commit()
-        return '', 204
+        return jsonify({'error': 'Link not found'}), 404
+    db.session.delete(link)
+    db.session.commit()
+    return '', 204
 
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=True)
