@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel</title>
+</head>
+<body>
+    <h1>Admin Panel</h1>
+
+    <h2>Add Link</h2>
+    <form action="/add" method="POST">
+        <input type="text" name="name" placeholder="Name" required>
+        <input type="text" name="link" placeholder="Link" required>
+        <input type="text" name="desc" placeholder="Description" required>
+        <input type="text" name="image" placeholder="Image Url" required>
+        <input type="text" name="tags" placeholder="Tags" required>
+        <button type="submit">Add</button>
+    </form>
+
+    <h2>Links</h2>
+    <ul>
+        {% for link in links %}
+            <li>
+                <h3>{{ link.name }}</h3> <b>Link: </b>{{ link.link }} <br><b>Desc: </b>{{ link.about }}<br><b>Tags: </b>{{ link.tags }}<br><b>Likes: </b>{{ link.likes }}<br>
+                <a href="/delete/{{ link.id }}">Delete</a>
+                <br>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

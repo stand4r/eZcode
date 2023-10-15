@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS, cross_origin
 
@@ -36,6 +36,12 @@ class Links(db.Model):
 @app.route("/index")
 def index():
     return render_template("index.html")
+
+
+@app.route('/robots.txt')
+@app.route('/sitemap.xml')
+def static_from_root():
+    return send_from_directory(app.static_folder, request.path[1:])
 
 
 @app.route("/api", methods=["GET"])
@@ -124,6 +130,33 @@ def delete_link(id):
     db.session.delete(link)
     db.session.commit()
     return '', 204
+
+@app.route('/admin')
+def admin():
+    links = Links.query.all()
+    return render_template('admin.html', links=links)
+
+@app.route('/add', methods=['POST'])
+def add_link():
+    link = Links(
+        name=request.form['name'],
+        link=request.form['link'],
+        about=request.form['desc'],
+        likes=0,
+        image=request.form['image'],
+        tags=request.form['tags']
+    )
+    db.session.add(link)
+    db.session.commit()
+    link_dict = link.to_dict()
+    return redirect('/admin')
+
+@app.route('/delete/<int:id>')
+def delete_link_admin(id):
+    link = Links.query.get(id)
+    db.session.delete(link)
+    db.session.commit()
+    return redirect('/admin')
 
 
 if __name__ == "__main__":
